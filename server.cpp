@@ -72,15 +72,20 @@ void page_proc(asio::yield_context yield, tcp::socket sock) {
   cout << "HTTP/2 session terminated!" << endl;
 }
 
-int main() 
+int main(int argc, char* argv[])
 {
+  int server_port  = 80;
   asio::io_service io_service;
   
+  if (argc == 2) {
+    server_port = stoi(argv[1]);
+  }
+
   asio::spawn(io_service, [&](asio::yield_context yield) { 
     boost::system::error_code ec;
 
     tcp::socket sock(io_service);
-    tcp::acceptor acceptor(io_service, tcp::endpoint(asio::ip::address::from_string("127.0.0.1"), 8080));
+    tcp::acceptor acceptor(io_service, tcp::endpoint(asio::ip::tcp::v4(), server_port));
 
     while (true) {
       acceptor.async_accept(sock, yield[ec]);

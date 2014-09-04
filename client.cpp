@@ -95,17 +95,23 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   
 }
 
-int main() 
+int main(int argc, char* argv[])
 {
+  string server_ip = "127.0.0.1";
+  int server_port  = 80;
   asio::io_service io_service;
+
+  if (argc == 3) {
+    server_ip = argv[1];
+    server_port = stoi(argv[2]);
+  }
   
   asio::spawn(io_service, [&](asio::yield_context yield) { 
     boost::system::error_code ec;
 
     tcp::socket sock(io_service);
     sock.async_connect(tcp::endpoint(
-        // asio::ip::address::from_string("106.186.112.116"), 80), yield[ec]);
-        asio::ip::address::from_string("127.0.0.1"), 8080), yield[ec]);
+        asio::ip::address::from_string(server_ip), server_port), yield[ec]);
 
     if (!ec) {
       asio::spawn(io_service, 
