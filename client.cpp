@@ -6,8 +6,8 @@ using asio::ip::tcp;
 
 void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   boost::system::error_code ec;
-  size_t size;
-  vector<uint8_t> buffer(8192);
+  ssize_t send_size, recv_size;
+  vector<uint8_t> recv_buffer(8192);
   vector<asio::const_buffer> send_buffer;
 
   // 1. Send magic octets as Connection Preface
@@ -23,7 +23,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
 
   // 3. Receive SETTINGS frame as ACK
   std::cout << "RECV SETTINGS frame as ACK" << std::endl;
-  size = sock.async_read_some(asio::buffer(buffer), yield[ec]);
+  recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
   if (ec) return;
   // TODO: Check received SETTINGS frame strictly
   
@@ -35,20 +35,20 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   headers.push_back(make_pair(":authority", "127.0.0.1"));
   headers.push_back(make_pair(":path",      "/"));
   
-  buffer.clear();
+  send_buffer.clear();
   vector<uint8_t> encoded_headers = get_headers_encoded_by_hpack(headers);
   Http2FrameHeader client_headers(encoded_headers.size(), 0x1, 0x5, 0x1);
-  vector<uint8_t> fh = client_headers.write_to_buffer();
-  buffer.insert(buffer.end(), fh.begin(), fh.end());
-  buffer.insert(buffer.end(), encoded_headers.begin(), encoded_headers.end());
-  async_write(sock, asio::buffer(buffer), yield[ec]);
+  vector<uint8_t> req_headers_fh = client_headers.write_to_buffer();
+  send_buffer.push_back(asio::buffer(req_headers_fh));
+  send_buffer.push_back(asio::buffer(encoded_headers));
+  async_write(sock, send_buffer, yield[ec]);
   if (ec) return;
 
   // 5. Receive HEADERS frames as response headers
   std::cout << "RECV HEADERS frame as response headers" << std::endl;
-  ssize_t resp_size = sock.async_read_some(asio::buffer(buffer), yield[ec]);
+  recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
   if (ec) return;
-  Http2FrameHeader resp_headers_fh(buffer.data(), size);
+  Http2FrameHeader resp_headers_fh(recv_buffer.data(), recv_size);
   // Here, we skip a payload of response headers.
   // TODO: To interpret response header, we should implement HACK decoder. :(
   ssize_t already = FRAME_HEADER_LENGTH + resp_headers_fh.get_length();
@@ -56,22 +56,21 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   // 6. Receive DATA frame as response body
   std::cout << "RECV DATA frame as response body" << std::endl;
   Http2FrameHeader resp_data_fh;
-  if (resp_size - already > 0) {
-    resp_data_fh.read_from_buffer(buffer.data()+already, FRAME_HEADER_LENGTH);
+  if (recv_size - already > 0) {
+    resp_data_fh.read_from_buffer(recv_buffer.data()+already, FRAME_HEADER_LENGTH);
 
     cout << "---" << endl;
-    cout << string(reinterpret_cast<const char*>(buffer.data()+already+FRAME_HEADER_LENGTH), resp_size-already-FRAME_HEADER_LENGTH) << endl;
+    cout << string(reinterpret_cast<const char*>(recv_buffer.data()+already+FRAME_HEADER_LENGTH), recv_size-already-FRAME_HEADER_LENGTH) << endl;
     cout << "---" << endl;
   } else {
-    resp_size = sock.async_read_some(asio::buffer(buffer), yield[ec]);
+    recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
     if (ec) return;
-    resp_data_fh.read_from_buffer(buffer.data(), FRAME_HEADER_LENGTH);
+    resp_data_fh.read_from_buffer(recv_buffer.data(), FRAME_HEADER_LENGTH);
     
     cout << "---" << endl;
-    cout << string(reinterpret_cast<const char*>(buffer.data()+FRAME_HEADER_LENGTH), resp_size-FRAME_HEADER_LENGTH) << endl;
+    cout << string(reinterpret_cast<const char*>(recv_buffer.data()+FRAME_HEADER_LENGTH), recv_size-FRAME_HEADER_LENGTH) << endl;
     cout << "---" << endl;
   }
-
 
   // 7. Send GOAWAY frame
   std::cout << "SEND GOAWAY frame" << std::endl;
