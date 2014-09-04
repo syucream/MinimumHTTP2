@@ -51,7 +51,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   do {
     recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
     if (ec) return;
-    Http2FrameHeader resp_headers_fh(recv_buffer.data(), recv_size);
+    Http2FrameHeader resp_headers_fh(recv_buffer.data(), FRAME_HEADER_LENGTH);
     resp_headers_fh.print();
 
     if (resp_headers_fh.get_type() == 0x1) {
@@ -65,7 +65,6 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   // 6. Receive DATA frame as response body
   std::cout << "RECV DATA frame as response body" << std::endl;
   Http2FrameHeader resp_data_fh;
-
   while (true) {
     if (recv_size - already > 0) {
       resp_data_fh.read_from_buffer(recv_buffer.data()+already, FRAME_HEADER_LENGTH);
@@ -85,7 +84,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
       cout << "---" << endl;
     }
     already += resp_data_fh.get_length();
-    if (resp_data_fh.get_flags() == 0x1) {
+    if (resp_data_fh.get_flags() & 0x1) {
       break;
     }
   }

@@ -58,7 +58,7 @@ void page_proc(asio::yield_context yield, tcp::socket sock) {
   // send_buffer.clear();
   Http2FrameHeader resp_data_fh(TEST_RESPONSE_BODY.size(), 0x0, 0x1, 0x1);
   resp_data_fh.print();
-  vector<uint8_t> resp_data_fh_vec = resp_headers_fh.write_to_buffer();
+  vector<uint8_t> resp_data_fh_vec = resp_data_fh.write_to_buffer();
   send_buffer.push_back(asio::buffer(resp_data_fh_vec));
   send_buffer.push_back(asio::buffer(TEST_RESPONSE_BODY));
   async_write(sock, send_buffer, yield[ec]);
