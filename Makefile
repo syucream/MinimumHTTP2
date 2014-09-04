@@ -1,9 +1,9 @@
 .PHONY: all clean
 
 LDFLAGS = -g -lboost_coroutine -lboost_context -lboost_system
-CLIENT_SRC = client.cpp
+CLIENT_SRC = http2.cpp client.cpp
 CLIENT_BIN = http2_client
-SERVER_SRC = server.cpp
+SERVER_SRC = http2.cpp server.cpp
 SERVER_BIN = http2_server
 
 ifeq ($(CXX),g++)
