@@ -26,7 +26,8 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
   if (ec) return;
   // TODO: Check received SETTINGS frame strictly
-  
+  // TODO: If SETTINGS was send by server, we send ACK for it.
+
   // 4. Send HEADERS frame as request headers
   std::cout << "SEND HEADERS frame as request headers" << std::endl;
   Headers headers;
@@ -46,30 +47,47 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
 
   // 5. Receive HEADERS frames as response headers
   std::cout << "RECV HEADERS frame as response headers" << std::endl;
-  recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
-  if (ec) return;
-  Http2FrameHeader resp_headers_fh(recv_buffer.data(), recv_size);
+  ssize_t already = 0;
+  do {
+    recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
+    if (ec) return;
+    Http2FrameHeader resp_headers_fh(recv_buffer.data(), recv_size);
+    resp_headers_fh.print();
+
+    if (resp_headers_fh.get_type() == 0x1) {
+      already = FRAME_HEADER_LENGTH + resp_headers_fh.get_length();
+      break;
+    }
+  } while (true);
   // Here, we skip a payload of response headers.
   // TODO: To interpret response header, we should implement HACK decoder. :(
-  ssize_t already = FRAME_HEADER_LENGTH + resp_headers_fh.get_length();
 
   // 6. Receive DATA frame as response body
   std::cout << "RECV DATA frame as response body" << std::endl;
   Http2FrameHeader resp_data_fh;
-  if (recv_size - already > 0) {
-    resp_data_fh.read_from_buffer(recv_buffer.data()+already, FRAME_HEADER_LENGTH);
 
-    cout << "---" << endl;
-    cout << string(reinterpret_cast<const char*>(recv_buffer.data()+already+FRAME_HEADER_LENGTH), recv_size-already-FRAME_HEADER_LENGTH) << endl;
-    cout << "---" << endl;
-  } else {
-    recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
-    if (ec) return;
-    resp_data_fh.read_from_buffer(recv_buffer.data(), FRAME_HEADER_LENGTH);
+  while (true) {
+    if (recv_size - already > 0) {
+      resp_data_fh.read_from_buffer(recv_buffer.data()+already, FRAME_HEADER_LENGTH);
+      already += FRAME_HEADER_LENGTH;
+      resp_data_fh.print();
+    } else {
+      recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
+      if (ec) return;
+      resp_data_fh.read_from_buffer(recv_buffer.data(), FRAME_HEADER_LENGTH);
+      already = FRAME_HEADER_LENGTH;
+      resp_data_fh.print();
+    }
     
-    cout << "---" << endl;
-    cout << string(reinterpret_cast<const char*>(recv_buffer.data()+FRAME_HEADER_LENGTH), recv_size-FRAME_HEADER_LENGTH) << endl;
-    cout << "---" << endl;
+    if (resp_data_fh.get_length() > 0) {
+      cout << "---" << endl;
+      cout << string(reinterpret_cast<const char*>(recv_buffer.data()+already), resp_data_fh.get_length()) << endl;
+      cout << "---" << endl;
+    }
+    already += resp_data_fh.get_length();
+    if (resp_data_fh.get_flags() == 0x1) {
+      break;
+    }
   }
 
   // 7. Send GOAWAY frame
