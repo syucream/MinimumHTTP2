@@ -56,7 +56,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   // TODO: Check received SETTINGS frame strictly
   // TODO: If SETTINGS was send by server, we send ACK for it.
 
-  // 4. SEND HEADERS frame as request headers
+  // 5. SEND HEADERS frame as request headers
   std::cout << "SEND HEADERS frame as request headers" << std::endl;
   Headers headers;
   headers.push_back(make_pair(":method",    "GET"));
@@ -74,7 +74,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   async_write(sock, send_buffer, yield[ec]);
   if (ec) return;
 
-  // 5. RECV HEADERS frames as response headers
+  // 6. RECV HEADERS frames as response headers
   std::cout << "RECV HEADERS frame as response headers" << std::endl;
   already = 0;
   do {
@@ -91,7 +91,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   // Here, we skip a payload of response headers.
   // TODO: To interpret response header, we should implement HACK decoder. :(
 
-  // 6. RECV DATA frame as response body
+  // 7. RECV DATA frame as response body
   std::cout << "RECV DATA frame as response body" << std::endl;
   Http2FrameHeader resp_data_fh;
   while (true) {
@@ -118,7 +118,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
     }
   }
 
-  // 7. SEND GOAWAY frame
+  // 8. SEND GOAWAY frame
   std::cout << "SEND GOAWAY frame" << std::endl;
   send_buffer.clear();
   vector<uint8_t> goaway_payload;

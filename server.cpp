@@ -68,14 +68,14 @@ void page_proc(asio::yield_context yield, tcp::socket sock) {
   // TODO: Check received SETTINGS frame strictly
   // TODO: If SETTINGS was send by server, we send ACK for it.
 
-  // 4. RECV HEADERS frame as request headers
+  // 5. RECV HEADERS frame as request headers
   std::cout << "RECV HEADERS frame as request headers" << std::endl;
   recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
   Http2FrameHeader req_header_fh(recv_buffer.data(), recv_buffer.size());
   if (ec) return;
   req_header_fh.print();
 
-  // 5. SEND HEADERS frames as response headers
+  // 6. SEND HEADERS frames as response headers
   std::cout << "SEND HEADERS frame as response headers" << std::endl;
   send_buffer.clear();
   
@@ -88,7 +88,7 @@ void page_proc(asio::yield_context yield, tcp::socket sock) {
   send_buffer.push_back(asio::buffer(resp_headers_fh_vec));
   send_buffer.push_back(asio::buffer(encoded_headers));
 
-  // 6. SEND DATA frame as response body
+  // 7. SEND DATA frame as response body
   std::cout << "SEND DATA frame as response body" << std::endl;
   Http2FrameHeader resp_data_fh(TEST_RESPONSE_BODY.size(), 0x0, 0x1, 0x1);
   resp_data_fh.print();
@@ -98,7 +98,7 @@ void page_proc(asio::yield_context yield, tcp::socket sock) {
   async_write(sock, send_buffer, yield[ec]);
   if (ec) return;
 
-  // 7. RECV GOAWAY frame
+  // 8. RECV GOAWAY frame
   std::cout << "RECV GOAWAY frame" << std::endl;
   recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
   if (ec) return;
