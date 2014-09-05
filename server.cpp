@@ -57,8 +57,6 @@ void page_proc(asio::yield_context yield, tcp::socket sock) {
   recv_settings_fh.read_from_buffer(recv_buffer.data(), FRAME_HEADER_LENGTH);
   recv_settings_fh.print();
   already = FRAME_HEADER_LENGTH + recv_settings_fh.get_length();
-  // TODO: Check received SETTINGS frame strictly
-  // TODO: If SETTINGS was send by server, we send ACK for it.
 
   // 5. RECV HEADERS frame as request headers
   std::cout << "RECV HEADERS frame as request headers" << std::endl;

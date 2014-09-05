@@ -53,8 +53,6 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
     if (recv_settings_ack && send_settings_ack)
       break;
   }
-  // TODO: Check received SETTINGS frame strictly
-  // TODO: If SETTINGS was send by server, we send ACK for it.
 
   // 5. SEND HEADERS frame as request headers
   std::cout << "SEND HEADERS frame as request headers" << std::endl;
