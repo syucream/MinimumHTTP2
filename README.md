@@ -3,6 +3,30 @@ MinimumHTTP2
 
 Minimum HTTP/2 client/server implementation.
 
+Usage
+------
+
+* client
+
+```
+./http2_client <server ip> <server port>
+```
+
+* server
+
+```
+./http2_server <server port>
+```
+
+Limitations
+------------
+
+* Number of available stream is limited only one.
+* Stream has no state. It can only process frames ordered ideally.
+* Almost of parts of HPACK encoder/decoder isn't implemented.
+  - Current implementation can encode by only `Literal Header Field without Indexing`
+  - Max size of Name and Value length is limited 7 bits.
+
 Requirements
 ------------
 
