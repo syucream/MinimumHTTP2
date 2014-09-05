@@ -32,7 +32,7 @@ public:
       length = (buffer[0] << 16) + (buffer[1] << 8) + buffer[2];
       type = buffer[3];
       flags = buffer[4];
-      stream_id = ntohl(static_cast<uint32_t>(buffer[5]));
+      stream_id = ntohl(*reinterpret_cast<const uint32_t*>(&buffer[5]));
     }
   }
 
