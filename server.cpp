@@ -8,21 +8,35 @@ static const string TEST_RESPONSE_BODY = "Hello, HTTP/2!";
 
 void page_proc(asio::yield_context yield, tcp::socket sock) {
   boost::system::error_code ec;
-  size_t size;
+  ssize_t recv_size;
   vector<uint8_t> recv_buffer(8192);
   vector<asio::const_buffer> send_buffer;
 
   // 1. RECV magic octets as Connection Preface
   std::cout << "RECV Connection Preface" << std::endl;
-  size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
+  ssize_t already = 0;
+  recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
   if (ec) return;
+  if ( recv_size >= CONNECTION_PREFACE.length() &&
+       string(reinterpret_cast<const char*>(recv_buffer.data()), CONNECTION_PREFACE.length()) ==
+       CONNECTION_PREFACE ) {
+    already = CONNECTION_PREFACE.length();
+  } else {
+    return;
+  }
 
   cout << "HTTP/2 session started!" << endl;
 
   // 2. RECV empty SETTINGS frame
   std::cout << "RECV empty SETTINGS frame" << std::endl;
-  size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
-  if (ec) return;
+  Http2FrameHeader req_settings_fh;
+  if (recv_size - already <= 0) {
+    recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
+    already = 0;
+    if (ec) return;
+  }
+  req_settings_fh.read_from_buffer(recv_buffer.data()+already, FRAME_HEADER_LENGTH);
+  if (req_settings_fh.get_type() != 0x4) return;
 
   // 3. SEND SETTINGS frame as ACK
   std::cout << "SEND SETTINGS frame as ACK" << std::endl;
@@ -33,7 +47,7 @@ void page_proc(asio::yield_context yield, tcp::socket sock) {
 
   // 4. RECV HEADERS frame as request headers
   std::cout << "RECV HEADERS frame as request headers" << std::endl;
-  size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
+  recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
   Http2FrameHeader req_header_fh(recv_buffer.data(), recv_buffer.size());
   if (ec) return;
   req_header_fh.print();
@@ -50,12 +64,9 @@ void page_proc(asio::yield_context yield, tcp::socket sock) {
   vector<uint8_t> resp_headers_fh_vec = resp_headers_fh.write_to_buffer();
   send_buffer.push_back(asio::buffer(resp_headers_fh_vec));
   send_buffer.push_back(asio::buffer(encoded_headers));
-  // async_write(sock, send_buffer, yield[ec]);
-  // if (ec) return;
 
   // 6. SEND DATA frame as response body
   std::cout << "SEND DATA frame as response body" << std::endl;
-  // send_buffer.clear();
   Http2FrameHeader resp_data_fh(TEST_RESPONSE_BODY.size(), 0x0, 0x1, 0x1);
   resp_data_fh.print();
   vector<uint8_t> resp_data_fh_vec = resp_data_fh.write_to_buffer();
@@ -66,7 +77,7 @@ void page_proc(asio::yield_context yield, tcp::socket sock) {
 
   // 7. RECV GOAWAY frame
   std::cout << "RECV GOAWAY frame" << std::endl;
-  size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
+  recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
   if (ec) return;
   
   cout << "HTTP/2 session terminated!" << endl;
