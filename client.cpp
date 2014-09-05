@@ -10,25 +10,25 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   vector<uint8_t> recv_buffer(8192);
   vector<asio::const_buffer> send_buffer;
 
-  // 1. Send magic octets as Connection Preface
+  // 1. SEND magic octets as Connection Preface
   std::cout << "SEND Connection Preface" << std::endl;
   async_write(sock, asio::buffer(CONNECTION_PREFACE), yield[ec]);
   if (ec) return;
 
-  // 2. Send empty SETTINGS frame
+  // 2. SEND empty SETTINGS frame
   std::cout << "SEND empty SETTINGS frame" << std::endl;
-  Http2FrameHeader client_settings(0, 0x4, 0, 0);
-  async_write(sock, asio::buffer(client_settings.write_to_buffer()), yield[ec]);
+  Http2FrameHeader req_settings_fh(0, 0x4, 0, 0);
+  async_write(sock, asio::buffer(req_settings_fh.write_to_buffer()), yield[ec]);
   if (ec) return;
 
-  // 3. Receive SETTINGS frame as ACK
+  // 3. RECV SETTINGS frame as ACK
   std::cout << "RECV SETTINGS frame as ACK" << std::endl;
   recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
   if (ec) return;
   // TODO: Check received SETTINGS frame strictly
   // TODO: If SETTINGS was send by server, we send ACK for it.
 
-  // 4. Send HEADERS frame as request headers
+  // 4. SEND HEADERS frame as request headers
   std::cout << "SEND HEADERS frame as request headers" << std::endl;
   Headers headers;
   headers.push_back(make_pair(":method",    "GET"));
@@ -45,7 +45,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   async_write(sock, send_buffer, yield[ec]);
   if (ec) return;
 
-  // 5. Receive HEADERS frames as response headers
+  // 5. RECV HEADERS frames as response headers
   std::cout << "RECV HEADERS frame as response headers" << std::endl;
   ssize_t already = 0;
   do {
@@ -62,7 +62,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   // Here, we skip a payload of response headers.
   // TODO: To interpret response header, we should implement HACK decoder. :(
 
-  // 6. Receive DATA frame as response body
+  // 6. RECV DATA frame as response body
   std::cout << "RECV DATA frame as response body" << std::endl;
   Http2FrameHeader resp_data_fh;
   while (true) {
@@ -89,7 +89,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
     }
   }
 
-  // 7. Send GOAWAY frame
+  // 7. SEND GOAWAY frame
   std::cout << "SEND GOAWAY frame" << std::endl;
   send_buffer.clear();
   vector<uint8_t> goaway_payload;
