@@ -4,7 +4,7 @@ using namespace std;
 namespace asio = boost::asio;
 using asio::ip::tcp;
 
-static const string TEST_RESPONSE_BODY = "Hello, HTTP/2!";
+static const string TEST_RESPONSE_BODY = "Hello, HTTP/2!\r\n";
 
 void page_proc(asio::yield_context yield, tcp::socket sock) {
   boost::system::error_code ec;
