@@ -18,6 +18,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   // 2. SEND empty SETTINGS frame
   std::cout << "SEND empty SETTINGS frame" << std::endl;
   Http2FrameHeader req_settings_fh(0, 0x4, 0, 0);
+  req_settings_fh.print();
   async_write(sock, asio::buffer(req_settings_fh.write_to_buffer()), yield[ec]);
   if (ec) return;
 
@@ -25,6 +26,8 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   std::cout << "RECV SETTINGS frame as ACK" << std::endl;
   recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
   if (ec) return;
+  Http2FrameHeader resp_settings_fh(recv_buffer.data(), FRAME_HEADER_LENGTH);
+  resp_settings_fh.print();
   // TODO: Check received SETTINGS frame strictly
   // TODO: If SETTINGS was send by server, we send ACK for it.
 
@@ -38,9 +41,10 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   
   send_buffer.clear();
   vector<uint8_t> encoded_headers = get_headers_encoded_by_hpack(headers);
-  Http2FrameHeader client_headers(encoded_headers.size(), 0x1, 0x5, 0x1);
-  vector<uint8_t> req_headers_fh = client_headers.write_to_buffer();
-  send_buffer.push_back(asio::buffer(req_headers_fh));
+  Http2FrameHeader req_headers_fh(encoded_headers.size(), 0x1, 0x5, 0x1);
+  req_headers_fh.print();
+  vector<uint8_t> req_headers_fh_vec = req_headers_fh.write_to_buffer();
+  send_buffer.push_back(asio::buffer(req_headers_fh_vec));
   send_buffer.push_back(asio::buffer(encoded_headers));
   async_write(sock, send_buffer, yield[ec]);
   if (ec) return;
@@ -80,7 +84,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
     
     if (resp_data_fh.get_length() > 0) {
       cout << "---" << endl;
-      cout << string(reinterpret_cast<const char*>(recv_buffer.data()+already), resp_data_fh.get_length()) << endl;
+      cout << string(reinterpret_cast<const char*>(recv_buffer.data()+already), resp_data_fh.get_length());
       cout << "---" << endl;
     }
     already += resp_data_fh.get_length();
@@ -103,8 +107,9 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   goaway_payload.push_back(0x0);
   goaway_payload.push_back(0x0);
   goaway_payload.push_back(0x0);
-  Http2FrameHeader client_goaway(0x8, 0x7, 0x1, 0);
-  send_buffer.push_back(asio::buffer(client_goaway.write_to_buffer()));
+  Http2FrameHeader goaway_fh(0x8, 0x7, 0x1, 0);
+  goaway_fh.print();
+  send_buffer.push_back(asio::buffer(goaway_fh.write_to_buffer()));
   send_buffer.push_back(asio::buffer(goaway_payload));
   async_write(sock, send_buffer, yield[ec]);
   if (ec) return;
