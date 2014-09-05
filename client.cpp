@@ -28,6 +28,7 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
   Http2FrameHeader resp_settings_fh(recv_buffer.data(), FRAME_HEADER_LENGTH);
   recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
   if (ec) return;
+
   already = 0;
   while (true) {
     if (recv_size - already <= 0) {
@@ -40,8 +41,10 @@ void fetch_proc(asio::yield_context yield, tcp::socket sock) {
     resp_settings_fh.print();
 
     if (resp_settings_fh.get_flags() == 0x1) {
+      // Detect ACK
       recv_settings_ack = true;
     } else {
+      // Send ACK corresponding to SETTINGS from server.
       Http2FrameHeader ack_settings_fh(0, 0x4, 0x1, 0);
       async_write(sock, asio::buffer(ack_settings_fh.write_to_buffer()), yield[ec]);
       if (ec) return;
