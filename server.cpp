@@ -8,13 +8,14 @@ static const string TEST_RESPONSE_BODY = "Hello, HTTP/2!\r\n";
 
 void page_proc(asio::yield_context yield, tcp::socket sock) {
   boost::system::error_code ec;
-  ssize_t recv_size;
+  bool recv_settings_ack = false, send_settings_ack = false;
+  ssize_t recv_size, already;
   vector<uint8_t> recv_buffer(8192);
   vector<asio::const_buffer> send_buffer;
 
   // 1. RECV magic octets as Connection Preface
   std::cout << "RECV Connection Preface" << std::endl;
-  ssize_t already = 0;
+  already = 0;
   recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
   if (ec) return;
   if ( recv_size >= CONNECTION_PREFACE.length() &&
@@ -27,23 +28,45 @@ void page_proc(asio::yield_context yield, tcp::socket sock) {
 
   cout << "HTTP/2 session started!" << endl;
 
-  // 2. RECV empty SETTINGS frame
-  std::cout << "RECV empty SETTINGS frame" << std::endl;
-  Http2FrameHeader req_settings_fh;
-  if (recv_size - already <= 0) {
-    recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
-    already = 0;
-    if (ec) return;
-  }
-  req_settings_fh.read_from_buffer(recv_buffer.data()+already, FRAME_HEADER_LENGTH);
-  if (req_settings_fh.get_type() != 0x4) return;
-
-  // 3. SEND SETTINGS frame as ACK
-  std::cout << "SEND SETTINGS frame as ACK" << std::endl;
-  Http2FrameHeader client_settings(0, 0x4, 0x1, 0);
-  async_write(sock, asio::buffer(client_settings.write_to_buffer()), yield[ec]);
-  client_settings.print();
+  // 2. SEND empty SETTINGS frame
+  std::cout << "SEND empty SETTINGS frame" << std::endl;
+  Http2FrameHeader req_settings_fh(0, 0x4, 0, 0);
+  req_settings_fh.print();
+  async_write(sock, asio::buffer(req_settings_fh.write_to_buffer()), yield[ec]);
   if (ec) return;
+
+  // 3,4. RECV SETTINGS frame and ACK
+  std::cout << "RECV SETTINGS frame and ACK" << std::endl;
+  Http2FrameHeader resp_settings_fh(recv_buffer.data(), FRAME_HEADER_LENGTH);
+  recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
+  if (ec) return;
+  already = 0;
+  while (true) {
+    if (recv_size - already <= 0) {
+      recv_size = sock.async_read_some(asio::buffer(recv_buffer), yield[ec]);
+      if (ec) return;
+      already = 0;
+    }
+    resp_settings_fh.read_from_buffer(recv_buffer.data()+already, FRAME_HEADER_LENGTH);
+    if (resp_settings_fh.get_type() != 0x4) return;
+    resp_settings_fh.print();
+
+    if (resp_settings_fh.get_flags() == 0x1) {
+      recv_settings_ack = true;
+    } else {
+      Http2FrameHeader ack_settings_fh(0, 0x4, 0x1, 0);
+      async_write(sock, asio::buffer(ack_settings_fh.write_to_buffer()), yield[ec]);
+      if (ec) return;
+      ack_settings_fh.print();
+      send_settings_ack = true;
+    }
+    already += FRAME_HEADER_LENGTH + resp_settings_fh.get_length();
+
+    if (recv_settings_ack && send_settings_ack)
+      break;
+  }
+  // TODO: Check received SETTINGS frame strictly
+  // TODO: If SETTINGS was send by server, we send ACK for it.
 
   // 4. RECV HEADERS frame as request headers
   std::cout << "RECV HEADERS frame as request headers" << std::endl;
